@@ -3,17 +3,18 @@
 # Assignment 2
 
 
-#!/bin/bash
 
 # Check /etc/hosts
 echo "Checking /etc/hosts..."
-if ! grep -q "192.168.16.21\s$(hostname)\shome.arpa\slocaldomain" /etc/hosts; then
+if ! grep -q "^192.168.16.21\s*$(hostname)\s*home.arpa\s*localdomain$" /etc/hosts; then
     echo "Change required to /etc/hosts"
     echo "Updating /etc/hosts..."
-    echo "192.168.16.21   $(hostname) home.arpa localdomain" | sudo tee -a /etc/hosts
+    sudo sed -i "/^192.168.16.21/s/.*/192.168.16.21   $(hostname) home.arpa localdomain/" /etc/hosts
 else
     echo "/etc/hosts is already configured."
 fi
+
+
 
 # Check installed software
 echo "Checking installed software..."
@@ -67,36 +68,58 @@ fi
 
 
 
-# Check UFW configuration
-echo "Checking UFW configuration..."
+# Check if UFW is installed
+if ! command -v ufw &> /dev/null; then
+    echo "UFW is not installed on this system."
+    exit 1
+fi
 
-if ! ufw status | grep -q "22.*ALLOW"; then
-    echo "Change required: Allow SSH (port 22) in UFW"
+# Check if UFW is active
+if ! sudo ufw status | grep -q "Status: active"; then
+    echo "Enabling UFW..."
+    sudo ufw enable
+fi
+
+# Check if SSH rule exists (IPv4)
+if sudo ufw status | grep -q "22.*ALLOW.*Anywhere"; then
+    echo "SSH (port 22) rule already exists."
+else
+    echo "Change required:SSH (port 22)"
     sudo ufw allow 22
-else
-    echo "SSH (port 22) is already allowed in UFW."
+    echo "SSH (port 22) rule added."
 fi
 
-if ! ufw status | grep -q "80.*ALLOW"; then
-    echo "Change required: Allow HTTP (port 80) in UFW"
+# Check if HTTP rule exists (IPv4)
+if sudo ufw status | grep -q "80.*ALLOW.*Anywhere"; then
+    echo "HTTP (port 80) rule already exists."
+else
+    echo "Change required:HTTP (port 80)"
     sudo ufw allow 80
-else
-    echo "HTTP (port 80) is already allowed in UFW."
+    echo "HTTP (port 80) rule added."
 fi
 
-if ! ufw status | grep -q "443.*ALLOW"; then
-    echo "Change required: Allow HTTPS (port 443) in UFW"
+# Check if HTTPS rule exists (IPv4)
+if sudo ufw status | grep -q "443.*ALLOW.*Anywhere"; then
+    echo "HTTPS (port 443) rule already exists."
+else
+    echo "Change required:HTTPS (port 443)"
     sudo ufw allow 443
-else
-    echo "HTTPS (port 443) is already allowed in UFW."
+    echo "HTTPS (port 443) rule added."
 fi
 
-if ! ufw status | grep -q "3128.*ALLOW"; then
-    echo "Change required: Allow Squid (port 3128) in UFW"
-    sudo ufw allow 3128
+# Check if web proxy rule exists (IPv4)
+if sudo ufw status | grep -q "3128.*ALLOW.*Anywhere"; then
+    echo "Web Proxy (port 3128) rule already exists."
 else
-    echo "Squid (port 3128) is already allowed in UFW."
+    echo "Change required:Web Proxy (port 3128)"
+    sudo ufw allow 3128
+    echo "Web Proxy (port 3128) rule added."
 fi
+
+# Display UFW status
+# echo "Updated UFW Rules:"
+# sudo ufw status
+
 
 
 # Check user accounts and SSH keys
@@ -126,14 +149,15 @@ for user in "${users[@]}"; do
 done
 
 
-# Check sudo access for dennis
-echo "Checking sudo access for user 'dennis'..."
-if ! sudo -lU dennis | grep -q "(ALL) NOPASSWD:ALL"; then
+sudoers_file="/etc/sudoers.d/dennis_nopasswd"
+
+if [ ! -f "$sudoers_file" ]; then
     echo "Change required: Allow 'dennis' to use sudo without a password"
-    echo "dennis ALL=(ALL) NOPASSWD:ALL" | sudo tee -a /etc/sudoers.d/dennis_nopasswd
+    echo "dennis ALL=(ALL) NOPASSWD:ALL" | sudo tee -a "$sudoers_file"
 else
     echo "Sudo access for 'dennis' is already configured."
 fi
+
 
 
 
